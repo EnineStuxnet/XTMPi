@@ -22,8 +22,9 @@ public class Plugin : BaseUnityPlugin
 
         foreach (var bundlePath in Directory.GetFiles(Path.Combine(Paths.PluginPath, MyPluginInfo.PLUGIN_NAME, "bundles")))
         {
-            if (bundlePath.Contains("."))
+            if (Path.GetFileName(bundlePath).Contains("."))
             {
+                Logger.LogInfo($"Skipping {bundlePath}");
                 continue;
             }
 
@@ -31,6 +32,13 @@ public class Plugin : BaseUnityPlugin
             {
                 var bundle = AssetBundle.LoadFromFile(bundlePath);
                 var map = Utils.LoadMapFromPath(Path.ChangeExtension(bundlePath, "ini"));
+
+                Logger.LogInfo($"Loaded bundle '{bundle.name}' from {bundlePath}");
+
+                foreach (var font in bundle.LoadAllAssets<TMP_FontAsset>())
+                {
+                    Logger.LogInfo($"Loaded font asset '{font.name}' from {bundle.name}");
+                }
 
                 foreach (var key in map.Keys)
                 {
@@ -42,11 +50,13 @@ public class Plugin : BaseUnityPlugin
                     foreach (var name in map[key])
                     {
                         FallbackFonts[key].Add(bundle.LoadAsset<TMP_FontAsset>(name));
+
+                        Logger.LogInfo($"{bundle.name}: {key} -> {name}");
                     }
-                }   
+                }
             } catch (Exception e)
             {
-                Logger.LogError($"Failed to load {Path.GetFileName(bundlePath)} bundle: {e}");
+                Logger.LogError($"Failed to load bundle from {Path.GetFileName(bundlePath)}: {e}");
             }
         }
 
@@ -69,6 +79,8 @@ public class Plugin : BaseUnityPlugin
 
         foreach (var font in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
         {
+            Logger.LogInfo($"Scene '{scene.name}' has font asset '{font.name}'");
+
             if (!FallbackFonts.ContainsKey(font.name))
             {
                 continue;
