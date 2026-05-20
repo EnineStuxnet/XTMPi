@@ -14,12 +14,12 @@ https://cactus.tistory.com/193
 https://noonnu.cc/font_page/923
 https://quiple.dev/font/galmuri
 
-KCC김훈체(KCCKimHoon)
+어비뒤죽박죽체(UhBeeGenWoo)
 https://noonnu.cc/font_page/84
-https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13072021&menuNo=200133
+http://uhbeefont.com/font/w/UhBeeGENWOO.html
 
 한용운체(HanYoungUn)
-https://noonnu.cc/font_page/368
+https://noonnu.cc/font_page/147
 https://gscaltexmediahub.com/esg/independence_font_remind
 
 대충쓴준우체(RFJunwoo)
