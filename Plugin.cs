@@ -1,11 +1,13 @@
 ﻿using System;
-using System.IO;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using BepInEx;
 using BepInEx.Logging;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.TextCore.LowLevel;
 
 namespace XTMP;
 
@@ -13,123 +15,169 @@ namespace XTMP;
 public class Plugin : BaseUnityPlugin
 {
     internal static new ManualLogSource Logger;
-    internal static Dictionary<string, TMP_FontAsset> ReplaceFonts = [];
-    internal static Dictionary<string, List<TMP_FontAsset>> FallbackFonts = [];
+
+    internal static Dictionary<string, TMP_FontAsset> Fonts = [];
+    internal static Dictionary<string, string> ReplaceFonts = [];
+    internal static Dictionary<string, List<string>> FallbackFonts = [];
+
+    static readonly string[] BundleExtensions = ["", ".bundle"];
+    static readonly string ResourceDir = Path.Combine(Paths.PluginPath, MyPluginInfo.PLUGIN_NAME);
 
     void Awake()
     {
         Logger = base.Logger;
 
-        var bundleDir = Path.Combine(Paths.PluginPath, MyPluginInfo.PLUGIN_NAME, "bundles");
+        var enumerator = Directory.EnumerateFiles(Path.Combine(Paths.PluginPath, MyPluginInfo.PLUGIN_NAME), "*", SearchOption.AllDirectories);
 
-        foreach (var bundlePath in Directory.EnumerateFiles(bundleDir))
+        foreach (var path in enumerator)
         {
-            if (Path.HasExtension(bundlePath))
-            {
-                Logger.LogDebug($"Skipping {bundlePath}");
-                continue;
-            }
-
             try
             {
-                var bundle = AssetBundle.LoadFromFile(bundlePath);
-                var map = Utils.LoadMapFromPath(Path.ChangeExtension(bundlePath, "ini"));
-
-                Logger.LogInfo($"Loaded bundle '{bundle.name}' from {bundlePath}");
-
-                foreach (var (fontName, fontValues) in map)
+                switch (Path.GetExtension(path).ToLower())
                 {
-                    var parts = fontName.Split(" -> ", 2);
-                    if (parts.Length == 2)
-                    {
-                        var originalFontName = parts[0].Trim();
-                        var replaceFontName = parts[1].Trim();
-                        var replaceFont = bundle.LoadAsset<TMP_FontAsset>(replaceFontName);
-
-                        ReplaceFonts[originalFontName] = replaceFont;
-                        DontDestroyOnLoad(replaceFont);
-
-                        Logger.LogDebug($"{bundle.name}: Replace '{originalFontName}' to '{replaceFontName}'");
-                        continue;
-                    }
-
-                    if (!FallbackFonts.TryGetValue(fontName, out var fallbackList))
-                    {
-                        fallbackList = [];
-                        FallbackFonts[fontName] = fallbackList;
-                    }
-
-                    foreach (var fallbackFontName in fontValues)
-                    {
-                        var fallbackFont = bundle.LoadAsset<TMP_FontAsset>(fallbackFontName);
-
-                        fallbackList.Add(fallbackFont);
-                        DontDestroyOnLoad(fallbackFont);
-
-                        Logger.LogDebug($"{bundle.name}: Add '{fallbackFontName}' into '{fontName}' as fallback");
-                    }
+                    case "":
+                    case ".bundle":
+                        LoadBundle(path);
+                        break;
+                    case ".ttf":
+                        LoadFont(path);
+                        break;
+                    case ".ini":
+                        LoadMap(path);
+                        break;
                 }
-
-                bundle.Unload(false);
             }
             catch (Exception e)
             {
-                Logger.LogError($"Failed to load bundle from {Path.GetFileName(bundlePath)}: {e}");
+                Logger.LogError($"Failed to process {path}: {e}");
             }
         }
 
         SceneManager.sceneLoaded += (_, _) => ApplyFonts();
     }
 
+    public static void LoadBundle(string path)
+    {
+        var bundle = AssetBundle.LoadFromFile(path);
+
+        foreach (var font in bundle.LoadAllAssets<TMP_FontAsset>())
+        {
+            Fonts[font.name] = font;
+            DontDestroyOnLoad(font);
+            Logger.LogDebug($"[LoadBundle] {Path.GetFileName(path)} -> {font.name} (#{font.instanceID})");
+        }
+
+        bundle.Unload(false);
+    }
+
+    public static void LoadFont(string path)
+    {
+        var fontName = Path.GetFileNameWithoutExtension(path);
+        var font = TMP_FontAsset.CreateFontAsset(
+            new Font(path), 100, 8, GlyphRenderMode.SDFAA, 1024, 1024, AtlasPopulationMode.Dynamic, true);
+
+        font.name = fontName;
+        Fonts[fontName] = font;
+        DontDestroyOnLoad(font);
+
+        Logger.LogDebug($"[LoadFont] {font.name} (#{font.instanceID})");
+    }
+
+    public static void LoadMap(string path)
+    {
+        foreach (var (header, values) in Utils.LoadMapFromPath(path))
+        {
+            var parts = header.Split(" -> ", 2);
+            if (parts.Length == 2)
+            {
+                var targetName = parts[0].Trim();
+                var replaceName = parts[1].Trim();
+
+                ReplaceFonts[targetName] = replaceName;
+                Logger.LogDebug($"[{path}] '{targetName}' -> '{replaceName}'");
+                continue;
+            }
+
+            if (!FallbackFonts.TryGetValue(header, out var fallbackFonts))
+            {
+                fallbackFonts = [];
+                FallbackFonts[header] = fallbackFonts;
+            }
+
+            fallbackFonts.AddRange(values);
+            Logger.LogDebug($"[{path}] '{header}' <- {string.Join(", ", values.Select(x => $"'{x}'"))}");
+        }
+    }
+
     internal static void ApplyFonts()
     {
-        if (FallbackFonts.TryGetValue("", out var globalFallbacks))
+        if (FallbackFonts.TryGetValue("", out var fallbackFontNames))
         {
-            for (var i = 0; i < globalFallbacks.Count; i++)
+            for (int i = fallbackFontNames.Count - 1; i >= 0; i--)
             {
-                var fallbackFont = globalFallbacks[i];
-                if (!TMP_Settings.fallbackFontAssets.Contains(fallbackFont))
+                var fallbackFontName = fallbackFontNames[i];
+                if (Fonts.TryGetValue(fallbackFontName, out var fallbackFont))
                 {
-                    TMP_Settings.fallbackFontAssets.Insert(i, fallbackFont);
-                    Logger.LogDebug($"Added '{fallbackFont.name}' to global fallback font");
+                    TMP_Settings.fallbackFontAssets.Insert(0, fallbackFont);
+                    Logger.LogDebug($"[GLOBAL] {fallbackFont.name} added as fallback");
+                    continue;
                 }
+
+                Logger.LogWarning($"[GLOBAL] {fallbackFontName} not found; skipping.");
             }
         }
 
-        foreach (var font in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
+        foreach (var targetFont in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
         {
-            Logger.LogDebug($"Found '{font.name}'");
-
-            if (ReplaceFonts.TryGetValue(font.name, out var replaceFont))
+            if (Fonts.ContainsValue(targetFont))
             {
-                Logger.LogDebug($"Found '{font.name}' to Replace. Gutting character table...");
-
-                font.fallbackFontAssetTable.Clear();
-                font.fallbackFontAssetTable.Add(replaceFont);
-
-                font.characterLookupTable.Clear();
-
-                // Placeholders: 32=Space, 45=Hyphen, 95=Underscore
-                font.characterTable.RemoveAll(c => c.unicode is not (32 or 45 or 95));
-                font.characterTable.ForEach(c => font.characterLookupTable[c.unicode] = c);
-
-                Logger.LogInfo($"Replaced '{font.name}' -> '{replaceFont.name}'");
+                continue;
             }
 
-            if (FallbackFonts.TryGetValue(font.name, out var fallbackFonts))
+            if (ReplaceFonts.TryGetValue(targetFont.name, out var replaceFontName))
             {
-                for (var i = 0; i < fallbackFonts.Count; i++)
+                if (!Fonts.TryGetValue(replaceFontName, out var replaceFont))
                 {
-                    var fallbackFont = fallbackFonts[i];
-                    if (!font.fallbackFontAssetTable.Contains(fallbackFont))
-                    {
-                        font.fallbackFontAssetTable.Insert(i, fallbackFont);
-                        Logger.LogDebug($"Added {fallbackFont.name} to fallback for {font.name}");
-                    }
+                    Logger.LogWarning($"[{targetFont.name}] {replaceFontName} not found; skipping.");
+                    continue;
+                }
+
+                try
+                {
+                    targetFont.fallbackFontAssetTable.Clear();
+                    targetFont.fallbackFontAssetTable.Add(replaceFont);
+
+                    targetFont.characterLookupTable.Clear();
+
+                    // Placeholders: 32=Space, 45=Hyphen, 95=Underscore
+                    targetFont.characterTable.RemoveAll(c => c.unicode is not (32 or 45 or 95));
+                    targetFont.characterTable.ForEach(c => targetFont.characterLookupTable[c.unicode] = c);
+
+                    Logger.LogDebug($"[{targetFont.name}] Replaced by {replaceFont.name}");
+                }
+                catch (Exception e)
+                {
+                    Logger.LogDebug($"[{targetFont.name}] Failed to replace with {replaceFont.name}: {e.Message}");
                 }
             }
 
-            font.ReadFontAssetDefinition();
+            if (FallbackFonts.TryGetValue(targetFont.name, out fallbackFontNames))
+            {
+                for (int i = fallbackFontNames.Count - 1; i >= 0; i--)
+                {
+                    var fallbackFontName = fallbackFontNames[i];
+                    if (Fonts.TryGetValue(fallbackFontName, out var fallbackFont))
+                    {
+                        targetFont.fallbackFontAssetTable.Insert(0, fallbackFont);
+                        Logger.LogDebug($"[{targetFont.name}] {fallbackFont.name} added as fallback");
+                        continue;
+                    }
+
+                    Logger.LogWarning($"[{targetFont.name}] {fallbackFontName} not found; skipping.");
+                }
+            }
+
+            targetFont.ReadFontAssetDefinition();
         }
     }
 }
