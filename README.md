@@ -1,21 +1,48 @@
 # eXtraTMP (XTMP)
 
-eXtraTMP is a lightweight BepInEx plugin designed to seamlessly add custom fallback fonts to TextMeshPro (TMP).
+**eXtraTMP** is a simple BepInEx plugin that allows you to add fallback fonts to existing fonts or configure alternative font replacements.
 
 ## Usage Guide
 
-### 1. Preparing Font Assets
-1. Generate a font atlas using Unity's [Font Asset Creator](https://docs.unity3d.com/Packages/com.unity.textmeshpro@4.0/manual/FontAssetsCreator.html).
-2. Package one or more font assets into a single file using the Unity [AssetBundle Browser](https://github.com/Unity-Technologies/AssetBundles-Browser).
+### 1. Preparing Fonts or Font Assets
 
-### 2. Installation & Configuration
-1. Place the generated AssetBundle file into the `BepInEx/plugins/XTMP/bundles` directory.
-2. In the same directory, create a configuration file with the exact same name as your bundle, but with an `.ini` extension (e.g., if your bundle is `myfonts.bundle`, create `myfonts.ini`).
-3. Define your fallback rules in the `.ini` file using the syntax detailed below. 
+Fonts can be loaded from either TrueType or AssetBundles.
 
-> **Note:** The plugin uses a simplified parser. While it resembles standard INI formatting, it does not support full INI syntax.
+#### Loading from TrueType Fonts
+1. Place your font file (`*.ttf`) into the `BepInEx/plugins/XTMP` directory.
+2. Specify the font in the configuration file using its exact filename.
 
-### Configuration Syntax
+#### Loading from AssetBundles
+1. [Create a TextMeshPro asset within Unity](https://docs.unity3d.com/Packages/com.unity.textmeshpro@3.2/manual/FontAssetsCreator.html#creating-a-font-asset).
+2. Build the asset into a bundle using the [AssetBundles-Browser](https://github.com/Unity-Technologies/AssetBundles-Browser).
+3. Place the bundle file (either with no extension or a `*.bundle`) into the `BepInEx/plugins/XTMP` directory.
+
+### 2. Creating the Configuration File
+
+1. Write the configuration file by referring to the [Configuration Syntax](#configuration-syntax) section below.
+2. Place your completed configuration file (`*.ini`) into the `BepInEx/plugins/XTMP` directory.
+
+### 3. Directory Structure
+
+Once everything is set up, your `BepInEx/plugins/XTMP` directory should look like the following structure:
+
+```text
+BepInEx/plugins/XTMP/
+├── bundles/
+│   ├── ko-KR.bundle
+│   ├── ko-KR.bundle.ini
+├── fonts/
+│   ├── ko-KR/
+│   │   ├── D2Coding.ttf
+│   │   ├── Galmuri7.ttf
+│   │   └── NotoSansKR.ttf
+│   └── ko-KR.bundle.ini
+└── XTMP.dll
+```
+
+## Configuration Syntax
+
+> **Note:** The configuration file format is similar to INI, but it does not support actual, standard INI syntax.
 
 ```ini
 # GLOBAL FALLBACK
@@ -36,3 +63,4 @@ NeoDunggeunmoPro
 [LiberationSans SDF]
 NotoSansKR SDF
 NotoSansJP SDF
+```
