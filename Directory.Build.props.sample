@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+    <PropertyGroup>
+        <GameDir>/mnt/d/SteamLibrary/steamapps/common/Casualties Unknown Demo</GameDir>
+        <GameExeName>CasualtiesUnknown.exe</GameExeName>
+    </PropertyGroup>
+
+    <Target Name="CopyFiles" AfterTargets="PostBuildEvent">
+        <Copy
+            SourceFiles="$(TargetDir)$(TargetName).dll"
+            DestinationFolder="$(PluginDir)\$(TargetName)"
+        />
+        <Copy
+            SourceFiles="$(TargetDir)$(TargetName).pdb"
+            DestinationFolder="$(PluginDir)\$(TargetName)"
+        />
+    </Target>
+
+    <Target Name="Launch" AfterTargets="CopyFiles">
+        <Exec Command="taskkill.exe /f /im &quot;$(GameExeName)&quot;" ContinueOnError="true" />
+        <Exec Command="&quot;$([System.IO.Path]::Join('$(GameDir)', '$(GameExeName)'))&quot; &gt; /dev/null 2&gt;&amp;1 &amp;" ContinueOnError="true" />
+    </Target>
+
+</Project>
