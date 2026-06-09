@@ -116,14 +116,11 @@ public class FontManager
 
         foreach (var font in bundle.LoadAllAssets<TMP_FontAsset>())
         {
-            Plugin.DontDestroyOnLoad(font);
             ApplyCustomProperties(font);
             Caches[font.name] = font;
 
             Plugin.Logger.LogDebug($"[LoadBundle] {Path.GetRelativePath(Utils.ConfigDir, path)} contains {font}");
         }
-
-        bundle.Unload(false);
     }
 
     public void LoadFont(string path)
