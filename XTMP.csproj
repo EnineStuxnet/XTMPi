@@ -3,7 +3,7 @@
     <RootNamespace>XTMP</RootNamespace>
     <AssemblyName>XTMP</AssemblyName>
     <Product>XTMP</Product>
-    <Version>1.0.4</Version>
+    <Version>1.0.5</Version>
 
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>latest</LangVersion>
