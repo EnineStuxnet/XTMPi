@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace XTMP;
 
@@ -70,22 +72,44 @@ public class Plugin : BaseUnityPlugin
             }
         }
 
-        foreach (var font in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
+        SceneManager.sceneLoaded += (scene, sceneMode) =>
         {
-            if (Manager.Fallbacks.TryGetValue(font.name, out fontNames))
+            foreach (var font in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
             {
-                for (int i = fontNames.Count - 1; i >= 0; i--)
+                if (!Manager.Caches.ContainsKey(font.name))
                 {
-                    if (Manager.TryGet(fontNames[i], out var fallbackFont, font))
+                    var props = new Dictionary<string, object>()
                     {
-                        font.fallbackFontAssetTable.Insert(0, fallbackFont);
-                        Logger.LogDebug($"[{font}] added {fallbackFont} as fallback");
+                        ["name"] = font.name,
+                        ["scale"] = font.faceInfo.scale,
+                        ["pointSize"] = font.faceInfo.pointSize,
+                        ["atlasPadding"] = font.atlasPadding,
+                        ["atlasRenderMode"] = font.atlasRenderMode
+                    };
+
+                    Logger.LogDebug($"Scene {scene.name} contains {font}:\n{string.Join("\n", props.Select(x => $"\t{x.Key} = {x.Value}"))}");
+                }
+
+                if (Manager.Fallbacks.TryGetValue(font.name, out fontNames))
+                {
+                    for (int i = fontNames.Count - 1; i >= 0; i--)
+                    {
+                        if (Manager.TryGet(fontNames[i], out var fallbackFont, font))
+                        {
+                            if (font.fallbackFontAssetTable.Contains(fallbackFont))
+                            {
+                                continue;
+                            }
+
+                            font.fallbackFontAssetTable.Insert(0, fallbackFont);
+                            Logger.LogDebug($"[{font}] added {fallbackFont} as fallback");
+                        }
                     }
                 }
-            }
 
-            font.ReadFontAssetDefinition();
-        }
+                font.ReadFontAssetDefinition();
+            }
+        };
 
         Harmony.CreateAndPatchAll(typeof(Plugin), MyPluginInfo.PLUGIN_GUID);
     }
