@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,6 +17,7 @@ public class Plugin : BaseUnityPlugin
     internal static new ManualLogSource Logger;
 
     internal static FontManager Manager = new();
+    internal static TextureManager Textures = new();
 
     [HarmonyPatch(typeof(TextMeshProUGUI), "LoadFontAsset")]
     [HarmonyPatch(typeof(TextMeshPro), "LoadFontAsset")]
@@ -40,13 +41,22 @@ public class Plugin : BaseUnityPlugin
         foreach (var ext in Utils.Extensions.Font) loaders[ext.ToLower()] = Manager.LoadFont;
         foreach (var ext in Utils.Extensions.Bundle) loaders[ext.ToLower()] = Manager.LoadBundle;
         foreach (var ext in Utils.Extensions.Map) loaders[ext.ToLower()] = Manager.LoadMap;
+        foreach (var ext in Utils.Extensions.Texture) loaders[ext.ToLower()] = Textures.LoadTexture;
 
         foreach (var path in Utils.ConfigFiles)
         {
             try
             {
                 var extension = Path.GetExtension(path).ToLower();
-                if (!loaders.TryGetValue(extension, out var loader))
+
+                Action<string> loader;
+                if (extension == "" && Utils.IsImageFile(path))
+                {
+                    // Extensionless file that's actually a PNG/JPEG -> treat as a texture,
+                    // not a bundle, so users can hide spoiler thumbnails in Explorer.
+                    loader = Textures.LoadTexture;
+                }
+                else if (!loaders.TryGetValue(extension, out loader))
                 {
                     Logger.LogDebug($"No loader, skipping {Path.GetRelativePath(Utils.ConfigDir, path)}");
                     continue;
@@ -74,6 +84,8 @@ public class Plugin : BaseUnityPlugin
 
         SceneManager.sceneLoaded += (scene, sceneMode) =>
         {
+            Textures.ApplyReplacements();
+
             foreach (var font in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
             {
                 if (!Manager.Caches.ContainsKey(font.name))

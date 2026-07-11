@@ -64,3 +64,8 @@ NeoDunggeunmoPro
 NotoSansKR SDF
 NotoSansJP SDF
 ```
+
+# eXtraTMP+image (XTMPi)
+
+Casualties: Unknown의 특정 에셋을 변경할 수 있도록 반영된 확장판입니다.
+임시 테스트판입니다.
